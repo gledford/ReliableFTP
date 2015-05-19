@@ -4,6 +4,11 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 
+/**
+ * This class is responsible for serializing and deserializing packets
+ * @author gledford
+ *
+ */
 public class serializer {
 	
 	public serializer() {

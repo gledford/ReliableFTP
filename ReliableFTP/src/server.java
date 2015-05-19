@@ -3,11 +3,16 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * This class is responsible for reliably receiving packets
+ * from the client and writing that data to a file.
+ * @author gledford
+ *
+ */
 public class server {
 	public static void main(String[] args) throws IOException {
 		if (args.length == 4) {
@@ -25,6 +30,14 @@ public class server {
 		}
 	}
 
+	/**
+	 * Receives the packets from the client and sends the acks back to the client
+	 * @param emulatorAddress
+	 * @param receivePort
+	 * @param sendPort
+	 * @return
+	 * @throws IOException
+	 */
 	private static List<packet> processPackets(String emulatorAddress,
 			int receivePort, int sendPort) throws IOException {
 
@@ -37,7 +50,7 @@ public class server {
 		packet ack = null;
 
 		while (true) {
-			byte[] buffer = new byte[125];
+			byte[] buffer = new byte[125]; //125 is size of packet with data
 			DatagramPacket receivePacket = new DatagramPacket(buffer,
 					buffer.length);
 			receiveSocket.receive(receivePacket);
@@ -46,13 +59,18 @@ public class server {
 
 			arrivalLogger.log(p.getSeqNum());
 			p.printContents();
+			
+			//If we have received the expected sequence number
 			if (expectedSequenceNumber == p.getSeqNum()) {
 				expectedSequenceNumber = p.getSeqNum() + 1;
+				
+				//% 8 the sequence number
 				if (expectedSequenceNumber > 7) {
 					expectedSequenceNumber = 0;
 				}
 				packetList.add(p);
 
+				//If EOT packet, send EOT ack
 				if (p.getType() == 3) {
 					packet eotAck = new packet(2, expectedSequenceNumber, 0, p
 							.getData().toUpperCase());
@@ -88,7 +106,9 @@ public class server {
 						System.err.println(ex);
 					}
 				}
-			} else {
+			}
+			//Else we received an out of order packet, send the expected sequence number ack back
+			else {
 				ack = new packet(0, expectedSequenceNumber, 0, packetList
 						.get(packetList.size() - 1).getData().toUpperCase());
 				
@@ -105,18 +125,20 @@ public class server {
 			}
 		}
 
+		//Close the logger and sockets
 		arrivalLogger.endLog();
 		sendSocket.close();
 		receiveSocket.close();
-
-		System.out.println("Final Packet List");
-		for (int index = 0; index < packetList.size(); index ++) {
-			packetList.get(index).printContents();
-		}
 		
 		return packetList;
 	}
 
+	/**
+	 * Writes all of the data received from the client to the file
+	 * @param packetList
+	 * @param fileName
+	 * @throws IOException
+	 */
 	private static void writeFile(List<packet> packetList, String fileName)
 			throws IOException {
 		FileWriter fileWriter = new FileWriter(fileName);
@@ -127,40 +149,5 @@ public class server {
 			}
 		}
 		fileWriter.close();
-	}
-}
-
-class senderThread extends Thread {
-	private String mHostName;
-	private int mPort;
-	private packet mPacket;
-	private serializer mSerializer;
-	private DatagramSocket mSocket;
-
-	public senderThread(String hostName, int port, packet p)
-			throws SocketException {
-		mHostName = hostName;
-		mPort = port;
-		mPacket = p;
-		mSocket = new DatagramSocket();
-		mSerializer = new serializer();
-		try {
-			mSocket.connect(InetAddress.getByName(mHostName), port);
-		} catch (UnknownHostException e) {
-			e.printStackTrace();
-		}
-	}
-
-	public void run() {
-		try {
-			byte[] data = mSerializer.serializePacket(mPacket);
-			DatagramPacket output = new DatagramPacket(data, data.length,
-					InetAddress.getByName(mHostName), mPort);
-			mSocket.send(output);
-			Thread.yield();
-		} catch (IOException ex) {
-			System.err.println(ex);
-		}
-		mSocket.close();
 	}
 }

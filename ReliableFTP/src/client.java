@@ -8,6 +8,13 @@ import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * This class is responsible for parsing a file into packets
+ * and sending the packets to the client. A reliable transfer is implemented
+ * using the "Go-Back-N" pattern.
+ * @author gledford
+ *
+ */
 public class client {
 
 	private static final int WINDOW_SIZE = 7;
@@ -33,6 +40,12 @@ public class client {
 		}
 	}
 
+	/**
+	 * Converts the file into packets
+	 * @param fileName
+	 * @return
+	 * @throws IOException
+	 */
 	private static List<packet> convertFileToPackets(String fileName)
 			throws IOException {
 		List<packet> packets = new ArrayList<packet>();
@@ -54,10 +67,14 @@ public class client {
 				}
 			}
 
+			//If the data size is 30, create the packet with the data
 			if (size == 30) {
 				packets.add(new packet(1, sequenceNumber, size,
 						new String(temp)));
-			} else {
+			}
+			//Else packet the MAX_VALUE of a byte in the remaining slots in the array
+			//before creating the packet
+			else {
 				for (int j = size; j < 30; j++) {
 					temp[j] = Byte.MAX_VALUE;
 				}
@@ -65,8 +82,10 @@ public class client {
 						new String(temp)));
 			}
 
+			//Move to the next 30 bytes
 			i += 30;
 
+			//Increment the sequence number % 8
 			if (sequenceNumber < 7) {
 				sequenceNumber++;
 			} else {
@@ -74,11 +93,20 @@ public class client {
 			}
 		}
 
+		//Create the EOT packet
 		packets.add(new packet(3, sequenceNumber, 0, "EOT"));
 
 		return packets;
 	}
 
+	/**
+	 * Sends the packets to the server
+	 * @param packets
+	 * @param emulatorAddress
+	 * @param sendPort
+	 * @param receivePort
+	 * @throws IOException
+	 */
 	private static void sendPacketsToEmulator(List<packet> packets,
 			String emulatorAddress, int sendPort, int receivePort)
 			throws IOException {
@@ -90,7 +118,7 @@ public class client {
 		logger ackLogger = new logger("ack.log");
 
 		DatagramSocket recSocket = new DatagramSocket(receivePort);
-		recSocket.setSoTimeout(800);
+		recSocket.setSoTimeout(800); //set the timeout to 800 ms
 
 		int packetIndex = 0;
 		int baseGoBackN = 0; // base Go Back N, aka Sf
@@ -99,7 +127,8 @@ public class client {
 
 		while (true) {
 			if (packetIndex < packets.size()
-					&& (nextSequenceNumber - baseGoBackN != WINDOW_SIZE)) {
+					&& (nextSequenceNumber - baseGoBackN != WINDOW_SIZE)) 
+			{
 				byte[] bufferPack = s.serializePacket(packets.get(packetIndex));
 				packets.get(packetIndex).printContents();
 				DatagramPacket sendPack = new DatagramPacket(bufferPack,
@@ -110,7 +139,7 @@ public class client {
 				nextSequenceNumber++;
 			} else {
 				DatagramPacket receivePacket;
-				byte[] bufferRec = new byte[125];
+				byte[] bufferRec = new byte[125]; //125 is size of packet with data
 				receivePacket = new DatagramPacket(bufferRec, bufferRec.length,
 						emulatorIpAddress, receivePort);
 				try {
@@ -127,10 +156,12 @@ public class client {
 						}
 					}
 					
+					//If we get the EOT server ACK, break
 					if (p.getType() == 2) {
 						break;
 					}
 				} catch (SocketTimeoutException e) {
+					//If we have timed out, reset variables
 					packetIndex = highestSequenceNumber;
 					baseGoBackN = highestSequenceNumber;
 					nextSequenceNumber = highestSequenceNumber;
@@ -141,6 +172,7 @@ public class client {
 			}
 		}
 
+		//Close all of the loggers and sockets
 		seqLogger.endLog();
 		ackLogger.endLog();
 		emulatorReceiveSocket.close();

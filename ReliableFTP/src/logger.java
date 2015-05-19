@@ -1,6 +1,11 @@
 import java.io.FileWriter;
 import java.io.IOException;
 
+/**
+ * This is a logger
+ * @author gledford
+ *
+ */
 class logger {
 	private FileWriter mFileWriter;
 	
